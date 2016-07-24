@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from sklearn import mixture
 
+ITER_STEP = 1000
+LOG_THRESHOLD = -100
+
 def standard_model():
     n_samples = 300
     # generate random sample, two components
@@ -39,6 +42,15 @@ def standard_model():
     plt.axis('tight')
     plt.show()
 
+def init_parameter():
+    pass
+
+def E_step():
+    pass
+
+def M_step():
+    pass
+
 def mixture_model():
 
     number_samples = 300
@@ -50,6 +62,14 @@ def mixture_model():
     gaussian_center = np.random.randn(number_samples, 2)
 
     x_train = np.vstack([gaussian_20, gaussian_center])
+    step = 1
+    pie, mean, corvariance = init_parameter()
+    data_log = -np.inf
+
+    while (data_log < LOG_THRESHOLD and step < ITER_STEP):
+        E_step()
+        M_step()
+        step += 1
 
 
 
