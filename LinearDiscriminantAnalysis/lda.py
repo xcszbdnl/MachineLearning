@@ -35,7 +35,7 @@ s_w = class_1.dot(class_1.T) + class_2.dot(class_2.T)
 
 w = np.linalg.inv(s_w).dot(mean_2 - mean_1)
 
-w = w  / np.sqrt(np.sum(np.abs(w) ** 2))
+w = w / np.sqrt(np.sum(np.abs(w) ** 2))
 
 k = w[1] / w[0]
 
