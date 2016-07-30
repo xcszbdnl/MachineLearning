@@ -1,6 +1,6 @@
 # MachineLearning
 
-To implement some machine learning algorithms, My blog is at [Blog](http://xcszbdnl.github.io/)
+To implement some machine learning algorithms, My blog is at [Blog](http://xcszbdnl.github.io/)  
 
 The following algorithm have been finished:
 1. [PCA](https://github.com/xcszbdnl/MachineLearning/blob/master/PCA/pca.py)
@@ -23,3 +23,6 @@ I'm going to implement the following algorithms
 12. Dirichlet Process
 13. Latent Dirichlet Allocation
 14. Hidden Markov Models
+15. ~~PCA~~
+16. ~~LDA(linear Discriminant analysis)~~
+17. ~~EM~~
