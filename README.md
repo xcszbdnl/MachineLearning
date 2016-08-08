@@ -15,7 +15,7 @@ I'm going to implement the following algorithms
 4. Naive Bayes
 5. Hierarchical Cluster
 6. Decision Trees
-7. Multilayer Perceptron
+7. ~~Multilayer Perceptron~~
 8. Convolutional Neural Network
 9. Recurrent Neural Network
 10. KD-Tree
