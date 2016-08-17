@@ -52,7 +52,7 @@ def mlp_forward(net, x_train, y_train):
     final_output = np.exp(final_output)
     final_output /= np.sum(final_output, axis=1).reshape((num_case, 1))
     net['output'].append(final_output)
-    net['cross_error'] = -(y_train * np.log(final_output)).sum() / net['batch_size']
+    net['cross_error'] = -(y_train * np.log(final_output)).sum() / num_case
 
 
 def mlp_backward(net, y_train):
@@ -104,7 +104,7 @@ def mlp_apply_grad(net):
         net['weights'][i] = net['weights'][i] - dw
 
 
-def mlp_test(net, x_test, y_test):
+def mlp_predict(net, x_test, y_test):
     mlp_forward(net, x_test, y_test)
     predict = net['output'][net['layer_num'] - 1]
     label = np.argsort(-predict, axis=1)[:, 0]
@@ -120,7 +120,7 @@ def mlp_train(net, x_train, y_train):
     for i in range(net['num_epoch']):
         tot_error = 0
         tot_cross_error = 0
-        random_index = np.random.choice(num_case, num_case)
+        random_index = np.random.permutation(num_case)
         batch_size = net['batch_size']
         print 'epoch %d' % i,
         for l in range(num_case / batch_size):
@@ -129,14 +129,13 @@ def mlp_train(net, x_train, y_train):
             mlp_forward(net, cnt_batch, cnt_target)
             mlp_backward(net, cnt_target)
             mlp_apply_grad(net)
-            error_num = mlp_test(net, cnt_batch, cnt_target)
+            error_num = mlp_predict(net, cnt_batch, cnt_target)
             tot_error += error_num
             tot_cross_error += net['cross_error']
         print 'classification error :%f, cross_entropy error:%f' % (tot_error * 1.0 / num_case, tot_cross_error)
-    return net
 
 
-def mlp():
+def mlp_test():
     x_train, y_train, x_test, y_test = get_data()
     x_train = x_train.astype(float)
     x_train /= 255.0
@@ -149,12 +148,12 @@ def mlp():
     """
     np.random.seed(42)
     net = mlp_setup([784, 100, 10])
-    net = mlp_train(net, x_train, y_train)
-    error_num = mlp_test(net, x_test, y_test)
+    mlp_train(net, x_train, y_train)
+    error_num = mlp_predict(net, x_test, y_test)
     print 'after trained %d misclassification' % error_num
 
 
-def check_mlp_gradient():
+def mlp_check_gradient():
     x_train = np.random.rand(20, 5)
     y_train = np.random.rand(20, 2)
     y_train = y_train == np.repeat(np.max(y_train, axis=1).reshape(y_train.shape[0], 1), y_train.shape[1], axis=1)
@@ -167,5 +166,5 @@ def check_mlp_gradient():
 
 if __name__ == '__main__':
     np.random.seed(0)
-    #check_mlp_gradient()
-    mlp()
+    #mlp_check_gradient()
+    mlp_test()
