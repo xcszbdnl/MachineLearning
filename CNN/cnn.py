@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
+import copy
+import operator
 import os
 
 def get_data():
@@ -8,6 +10,14 @@ def get_data():
     data_set = np.load(data_path)
     return data_set['x_train'], data_set['y_train'], data_set['x_test'], data_set['y_test']
 
+
+def flip_all(x):
+    dimension = len(x.shape)
+    for i in range(dimension):
+        x = x.swapaxes(i, 0)
+        x = x[::-1, ...]
+        x = x.swapaxes(0, i)
+    return x
 
 def sigmoid(x):
     if x > 0:
@@ -23,10 +33,14 @@ def cnn_setup(net_architecture, x_train, y_train):
     net['bias'] = []
     net['epoch'] = 100
     net['batch_size'] = 100
+
+    # the number of the layer do not include the fully connected layer
     layer_num = len(net_architecture)
-    net['layer_num'] = layer_num + 1
     input_map = net_architecture[0]['input_maps']
     map_size = np.array([x_train.shape[0], x_train.shape[1]])
+    net['layer_num'] = layer_num
+    # let the layer of bias index start at 1
+    net['bias'].append([])
     for l in range(layer_num - 1):
         net['weights'].append([])
         net['bias'].append([])
@@ -56,10 +70,10 @@ def cnn_forward(net, x_train, y_train):
     net['output'] = []
     net['output'].append([])
     net['output'][0].append(x_train)
-    num_cases = x_train.reshape[2]
+    num_cases = x_train.shape[2]
     layer_num = net['layer_num']
-    input_maps = net_architecture[0]['input_map']
-    for l in range(1, layer_num - 1):
+    input_maps = net_architecture[0]['input_maps']
+    for l in range(1, layer_num):
         net['output'].append([])
         if net_architecture[l]['type'] == 'convolutional':
             output_maps = net_architecture[l]['output_maps']
@@ -68,7 +82,7 @@ def cnn_forward(net, x_train, y_train):
                 map_size = net['output'][l - 1][0].shape - (kernel_size - 1, kernel_size - 1, 0)
                 result = np.zeros(map_size)
                 for j in range(input_maps):
-                    result += signal.convolve2d(net['output'][l - 1][j], net['weights'][l][j][i], 'valid')
+                    result += signal.convolve(net['output'][l - 1][j], net['weights'][l - 1][j][i], 'valid')
                 result += net['bias'][l][i]
                 vector_sigmoid = np.vectorize(sigmoid)
                 result = vector_sigmoid(result)
@@ -79,13 +93,14 @@ def cnn_forward(net, x_train, y_train):
             map_size /= scale
             mean_pooling = np.ones((scale, scale)) / (scale ** 2)
             for i in range(output_maps):
-                result = signal.convolve2d(net['output'][l - 1][j], mean_pooling)
+                result = signal.convolve(net['output'][l - 1][j], mean_pooling)
                 result = result[::scale, ::scale, :]
                 net['output'][l].append(result)
     penultimate_layer = np.array([])
     for i in range(input_maps):
-        cnt_map = net['output'][layer_num - 2][i].reshape(map_size[0] * map_size[1], map_size[2])
+        cnt_map = net['output'][layer_num - 1][i].reshape(map_size[0] * map_size[1], map_size[2])
         penultimate_layer = np.vstack((penultimate_layer, cnt_map))
+    net['penultimate_layer'] = penultimate_layer
     final_output = net['weights'][layer_num - 1].dot(penultimate_layer)
     final_output -= np.max(final_output, axis=0).reshape(1, num_cases)
     final_output = np.exp(final_output)
@@ -99,29 +114,37 @@ def cnn_backward(net, y_train):
     net_architecture = net['architecture']
     input_maps = net_architecture[0]['input_maps']
     output_maps = net_architecture[1]['output_maps']
+    num_cases = len(y_train)
     net['delta'] = []
     net['weights_gradient'] = []
-    for l in range(layer_num - 1):
+    net['bias_gradient'] = []
+    for l in range(layer_num):
         net['delta'].append([])
         net['weights_gradient'].append([])
+        net['bias_gradient'].append([])
         for i in range(input_maps):
             net['weights_gradient'][l].append([])
             net['delta'][l].append(np.zeros(net['output'][l][i]))
+            net['bias_gradient'].append(0)
             if net_architecture[l]['type'] == 'convolutional':
                 for j in range(output_maps):
                     net['weights_gradient'][l][i].append(np.zeros((net['weights'][l][i][j].shape)))
         if net_architecture[l]['type'] == 'convolutional':
             input_maps = net_architecture[l]['output_maps']
-    net['delta'].append(np.zeros(net['output'][layer_num - 1]))
-    net['delta'][layer_num - 1] = (net['output'][layer_num - 1] - y_train)
+    net['weights_gradient'].append(np.zeros(net['weights'][layer_num - 1]))
+    net['delta'].append(np.zeros(net['output'][layer_num]))
+    net['delta'][layer_num] = (net['output'][layer_num] - y_train)
     pre_layer = net['weights'].T.dot(net['delta'][layer_num - 1])
-    map_size = net['output'][layer_num - 2][0].shape
-    output_maps = net_architecture[layer_num - 3]['output_maps']
+    map_size = net['output'][layer_num - 1][0].shape
+    output_maps = net_architecture[layer_num - 2]['output_maps']
+
+    # convert fully connected layer to image layer
     for i in range(output_maps):
         map_num = map_size[0] * map_size[1]
         net['delta'][layer_num - 1][i] = pre_layer[i * map_num : (i + 1) * map_num, :].reshape(
             map_size[0], map_size[1], map_size[2])
-    for l in range(layer_num - 3, 0, -1):
+
+    for l in range(layer_num - 1, 0, -1):
         if net_architecture[l]['type'] == 'pooling':
             input_maps = net_architecture[l - 1]['output_maps']
             for i in range(input_maps):
@@ -129,22 +152,53 @@ def cnn_backward(net, y_train):
                 for j in range(output_maps):
                     result += signal.convolve2d(net['delta'][l+1][j], np.rot90(net['weights'][l][i][j], 2), 'full')
                 net['delta'][l][i] = result
+            output_maps = input_maps
         elif net_architecture[l]['type'] == 'convolutional':
             scale = net_architecture[l]['scale']
             for i in range(output_maps):
                 net['delta'][l][i] = np.kron(net['delta'][l + 1][i], np.ones((scale, scale))) / (scale ** 2)
                 net['delta'][l][i] *= net['output'][l][i]
+
     input_maps = net_architecture[0]['input_maps']
-    for l in range(layer_num - 2):
+    for l in range(layer_num):
+        if net_architecture[l]['type'] == 'convolutional':
+            output_maps = net_architecture[l]['output_maps']
+            for i in range(output_maps):
+                delta_flip = flip_all(net['delta'][l][i])
+                # calculate gradient for different filters
+                for j in range(input_maps):
+                    net['weights_gradient'][l - 1][j][i] = signal.convolve(net['output'][l - 1][j], delta_flip) / num_cases
+                # calculate bias
+                net['bias_gradient'][l][i] = np.sum(delta_flip) / num_cases
+    net['weight_gradient'][layer_num - 1] = net['delta'][layer_num].T.dot(net['penultimate_layer'])
 
 
 
 
-def cnn_apply_grad():
-    pass
+def cnn_apply_grad(net):
+    layer_num = net['layer_num']
+    net_architecture = net['net_architecture']
+    input_maps = net_architecture[0]['input_maps']
+    learning_rate = net['learning_rate']
+    for l in range(layer_num):
+        if net_architecture[l]['type'] == 'convolutional':
+            output_maps = net_architecture[l]['output_maps']
+            for i in range(output_maps):
+                net['bias'][l][i] = net['bias'][l][i] - learning_rate * net['bias_gradient'][l][i]
+                for j in range(input_maps):
+                    net['weights'][l][i][j] = net['weights'][l][i][j] - learning_rate * net['weights_gradient'][l][i][j]
+    net['weights'][layer_num] = net['weights'][layer_num] - learning_rate * net['weights_gradient'][layer_num]
+
 
 def cnn_predict(net, x_test, y_test):
-    pass
+    cnn_forward(net, x_test, y_test)
+    predict = net['output'][net['layer_num']]
+    label = np.argsort(-predict, axis=1)[:, 0]
+    err_num = 0
+    for i in range(len(x_test)):
+        if y_test[i, label[i]] == 0:
+            err_num += 1
+    return err_num
 
 
 def cnn_train(net, x_train, y_train):
@@ -167,20 +221,82 @@ def cnn_train(net, x_train, y_train):
         print 'classification error :%f, cross_entropy error:%f' % (tot_error_num * 1.0 / num_cases, tot_cross_error)
 
 
+def gradient_numerical_check(net, x_train, y_train):
+    epsilon = 1e-4
+    error_threshold = 1e-7
+    layer_num = net['layer_num']
+    net_architecture = net['net_architecture']
+    for i in range(net['weights'][layer_num].shape[0]):
+        for j in range(net['weights'][layer_num].shape[1]):
+            net_p = copy.deepcopy(net)
+            net_n = copy.deepcopy(net)
+            net_p['weights'][layer_num][i][j] += epsilon
+            net_n['weights'][layer_num][i][j] -= epsilon
+            cnn_forward(net_p, x_train, y_train)
+            cnn_forward(net_n, x_train, y_train)
+            delta = (net_p['cross_error'] - net_n['cross_error']) / (2 * epsilon)
+            err = np.abs(delta - net['weights_gradient'][layer_num][i][j])
+            if err > error_threshold:
+                print 'gradient calculate error at layer %d, index: (%d, %d)' % (layer_num, i, j)
+
+    input_maps = net_architecture[0]['input_maps']
+    for l in range(layer_num):
+        if net_architecture[l]['type'] == 'convolutional':
+            output_maps = net_architecture[l]['output_maps']
+            for i in range(output_maps):
+                net_p = copy.deepcopy(net)
+                net_n = copy.deepcopy(net)
+                net_p['bias'][l][i] += epsilon
+                net_n['bias'][l][i] -= epsilon
+                cnn_forward(net_p, x_train, y_train)
+                cnn_forward(net_n, x_train, y_train)
+                delta = (net_p['cross_error'] - net_n['cross_error'] / (2 * epsilon))
+                err = np.abs(delta - net['bias_gradient'][l][i])
+                if err > error_threshold:
+                    print 'gradient calculate error at layer %d, bias index: %d' (layer_num, i)
+
+                for j in range(input_maps):
+                    for u in range(net['weights'][l][i][j].shape[0]):
+                        for v in range(net['weights'][l][i][j].shape[1]):
+                            net_p = copy.deepcopy(net)
+                            net_n = copy.deepcopy(net)
+                            net_p['weights'][l][i][j][u][v] += epsilon
+                            net_n['weights'][l][i][j][u][v] -= epsilon
+                            cnn_forward(net_p, x_train, y_train)
+                            cnn_forward(net_n, x_train, y_train)
+                            delta = (net_p['cross_error'] - net_n['cross_error']) / (2 * epsilon)
+                            if err > error_threshold:
+                                print 'gradient calculate error at layer %d, input_map: %d,' \
+                                      ' output_map : %d, index: (%d, %d)' % (layer_num, i, j, u, v)
+
+
+
+
 def cnn_check_gradient():
-    pass
+    x_train = np.random.rand(6, 6, 10)
+    y_train = np.random.rand(2, 10)
+    y_train = y_train == np.repeat(np.max(y_train, axis=1).reshape(y_train.shape[0], 1), y_train.shape[1], axis=1)
+    y_train = y_train.astype('int')
+    net_architecture = [{'type': 'input', 'input_maps': 1},
+                 {'type': 'convolutional', 'output_maps': 3, 'kernel_size': 2},
+                 {'type': 'pooling', 'scale': 2},
+                 ]
+    net = cnn_setup(net_architecture, x_train, y_train)
+    cnn_forward(net, x_train, y_train)
+    cnn_backward(net, y_train)
+    gradient_numerical_check(net, x_train, y_train)
 
 
 def cnn_test():
     x_train, y_train, x_test, y_test = get_data()
     x_train = x_train.astype('float')
     x_test = x_test.astype('float')
-    x_train = x_train.reshape((28, 28, 60000)) / 255
-    x_test = x_test.reshape((28, 28, 10000)) / 255
+    x_train = x_train.T.reshape((28, 28, 60000)) / 255
+    x_test = x_test.T.reshape((28, 28, 10000)) / 255
     y_train = y_train.T
     y_test = y_test.T
     plt.figure(1, (12, 6))
-    x = x_train[:,:, 0]
+    x = x_train[:, :, 0]
     plt.imshow(x, cmap=plt.gray())
     plt.show()
     net_architecture = [{'type': 'input', 'input_maps': 1},
