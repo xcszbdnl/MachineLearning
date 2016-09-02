@@ -45,7 +45,6 @@ def mlp_forward(net, x_train, y_train):
         cnt_output = np.hstack((np.ones((num_case, 1)), cnt_output))
         vector_sigmoid = np.vectorize(sigmoid)
         cnt_output = vector_sigmoid(cnt_output)
-        #cnt_output = sigmoid(cnt_output)
         net['output'].append(cnt_output)
     final_output = net['output'][layer_num - 2].dot(net['weights'][layer_num - 2].T)
     final_output -= np.max(final_output, axis=1).reshape((num_case, 1))
@@ -136,6 +135,9 @@ def mlp_train(net, x_train, y_train):
 
 
 def mlp_test():
+    # all training vector are row like vector
+    # training matrix should be reshaped like (dataset size * features number)
+    # label matrix should be reshaped like (dataset size * label number)
     x_train, y_train, x_test, y_test = get_data()
     x_train = x_train.astype(float)
     x_train /= 255.0
