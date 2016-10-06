@@ -9,7 +9,7 @@ The following algorithm have been finished:
 
 I'm going to implement the following algorithms
 
-1. Linear Regression with Elastic Net
+1. ~~Linear Regression with Elastic Net~~
 2. Support Vector Machine
 3. AdaBoost
 4. Naive Bayes
@@ -19,7 +19,7 @@ I'm going to implement the following algorithms
 8. ~~Convolutional Neural Network~~
 9. Recurrent Neural Network
 10. KD-Tree
-11. Gaussian Process
+11. ~~Gaussian Process~~
 12. Dirichlet Process
 13. Latent Dirichlet Allocation
 14. Hidden Markov Models

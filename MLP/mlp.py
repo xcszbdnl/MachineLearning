@@ -141,13 +141,13 @@ def mlp_test():
     x_train, y_train, x_test, y_test = get_data()
     x_train = x_train.astype(float)
     x_train /= 255.0
-    """
+
     x1 = x_train[0, :]
     x1 = np.reshape(x1, (28, 28))
     plt.figure(1, (12, 6))
     plt.imshow(x1, plt.gray())
     plt.show()
-    """
+
     np.random.seed(42)
     net = mlp_setup([784, 100, 10])
     mlp_train(net, x_train, y_train)
