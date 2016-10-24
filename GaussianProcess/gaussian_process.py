@@ -96,7 +96,7 @@ def hyperparam_likelihood(x_train, y_train):
     return sigma, l
 
 
-def getData():
+def get_data():
     x_train = np.array([1., 3., 5., 6., 7., 8.])
     y_train = f(x_train).ravel()
     x_test = np.linspace(0, 10, 1000)
@@ -107,7 +107,7 @@ def getData():
 
 
 def gaussian_process_test():
-    x_train, y_train, x_test = getData()
+    x_train, y_train, x_test = get_data()
     sigma, l = hyperparam_likelihood(x_train, y_train)
     K = covariance(x_train, x_train, sigma, l)
     K_star = covariance(x_test, x_train, sigma, l)

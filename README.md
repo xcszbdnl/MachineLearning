@@ -18,7 +18,7 @@ I'm going to implement the following algorithms
 7. ~~Multilayer Perceptron~~
 8. ~~Convolutional Neural Network~~
 9. Recurrent Neural Network
-10. KD-Tree
+10. ~~KD-Tree~~
 11. ~~Gaussian Process~~
 12. Dirichlet Process
 13. Latent Dirichlet Allocation
