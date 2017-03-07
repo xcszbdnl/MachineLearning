@@ -2,21 +2,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-SEPARABLE = True
+SEPARABLE = False
 GEN_W = 1
 GEN_B = 0
 LOW = -25
 HIGH = 25
-DATA_NUM = 100
-MAX_RANGE = 10
+DATA_NUM = 50
+MAX_RANGE = 5
 TOLERANCE = 1e-5  # update tolerance for each variable
-EPSILON = 1e-4
+EPSILON = 1e-5
 MAX_ITER = 100
 C = 10
 
 
 def generate_data():
-    np.random.seed(40)
+    np.random.seed(42)
     # to generate data around y = GEN_W * x + GEN_B
     x_train = np.zeros((DATA_NUM, 2))
     y_train = np.zeros(DATA_NUM)
@@ -24,10 +24,10 @@ def generate_data():
         label_change_prob = 0.1
     else:
         label_change_prob = 0
-
-    for i in range(DATA_NUM):
-        x_1 = np.random.randint(LOW, HIGH)
-        x_2 = np.random.randint(LOW, HIGH)
+    i = 0
+    while i < DATA_NUM:
+        x_1 = (HIGH - LOW) * np.random.random() + LOW
+        x_2 = (HIGH - LOW) * np.random.random() + LOW
         label = 0
         if x_2 > GEN_W * x_1 + GEN_B:
             label = 1
@@ -43,6 +43,7 @@ def generate_data():
         x_train[i, 0] = x_1
         x_train[i, 1] = x_2
         y_train[i] = label
+        i += 1
     cmap_bold = ListedColormap(['#FF0000', '#00FF00'])
     plt.scatter(x_train[:, 0], x_train[:, 1], c=y_train, cmap=cmap_bold)
     plt.show()
@@ -56,18 +57,18 @@ def get_kernel(i, j, x_train):
 
 
 def get_e(index, param_alpha, b, x_train, y_train):
-    result = 0
+    result = 0.0
     for i in range(DATA_NUM):
         result += param_alpha[i] * y_train[i] * get_kernel(index, i, x_train)
-    result += b
+    result += b[0]
     result -= y_train[index]
     return result
 
 
 def select_j(index, e_i, param_alpha, b, x_train, y_train, e_cache):
-    e_j = 0
-    max_delta = 0
     j = 0
+    e_j = get_e(j, param_alpha, b, x_train, y_train)
+    max_delta = 0
     e_cache[index, :] = [1, e_i]
     valid_index = np.nonzero(e_cache[:, 0])[0]
     if len(valid_index) > 1:
@@ -76,13 +77,13 @@ def select_j(index, e_i, param_alpha, b, x_train, y_train, e_cache):
                 continue
             e_k = get_e(k, param_alpha, b, x_train, y_train)
             if abs(e_i - e_k) > max_delta:
-                max_delta = e_i - e_k
+                max_delta = abs(e_i - e_k)
                 e_j = e_k
                 j = k
     else:
         j = index
         while j == index:
-            j = np.random.randint(0, DATA_NUM)
+            j = int(np.random.uniform(0, DATA_NUM))
         e_j = get_e(j, param_alpha, b, x_train, y_train)
     return j, e_j
 
@@ -100,17 +101,27 @@ def update_e(i, param_alpha, b, x_train, y_train, e_cache):
     e_cache[i, :] = [1, e_i]
 
 
+def random_select(i, e_i, param_alpha, b, x_train, y_train, e_cache):
+    j = i
+    e_j = 0
+    while j == i:
+        j = np.random.randint(0, DATA_NUM)
+        e_j = get_e(j, param_alpha, b, x_train, y_train)
+    return j, e_j
+
+
 def update_alpha(i, param_alpha, b, x_train, y_train, e_cache):
     e_i = get_e(i, param_alpha, b, x_train, y_train)
     if (e_i * y_train[i] < -EPSILON and param_alpha[i] < C) or \
             (e_i * y_train[i] > EPSILON and param_alpha[i] > 0):
         j, e_j = select_j(i, e_i, param_alpha, b, x_train, y_train, e_cache)
+        # j, e_j = random_select(i, e_i, param_alpha, b, x_train, y_train, e_cache)
         eta = get_kernel(i, i, x_train) + get_kernel(j, j, x_train) - 2 * get_kernel(i, j, x_train)
         if eta <= 0.0:
             print 'eta <= 0'
             return 0
-        alpha_i_old = param_alpha[i]
-        alpha_j_old = param_alpha[j]
+        alpha_i_old = param_alpha[i].copy()
+        alpha_j_old = param_alpha[j].copy()
         if y_train[i] == y_train[j]:
             H = min(C, alpha_i_old + alpha_j_old)
             L = max(0, alpha_i_old + alpha_j_old - C)
@@ -122,23 +133,24 @@ def update_alpha(i, param_alpha, b, x_train, y_train, e_cache):
             return 0
         alpha_j_new = alpha_j_old + y_train[j] * (e_i - e_j) / eta
         alpha_j_new = clip_alpha(L, H, alpha_j_new)
-        update_e(i, param_alpha, b, x_train, y_train, e_cache)
+        update_e(j, param_alpha, b, x_train, y_train, e_cache)
         param_alpha[j] = alpha_j_new
         if abs(alpha_j_new - alpha_j_old) < TOLERANCE:
             print 'j not moving enough'
             return 0
         alpha_i_new = alpha_i_old + y_train[i] * y_train[j] * (alpha_j_old - alpha_j_new)
-        b_1 = -e_i - y_train[i] * get_kernel(i, i, x_train) * (alpha_i_new - alpha_i_old) - y_train[j] * \
-            get_kernel(i, j, x_train) * (alpha_j_new - alpha_j_old) + b
-        b_2 = -e_j - y_train[j] * get_kernel(i, j, x_train) * (alpha_i_new - alpha_i_old) - y_train[j] * \
-            get_kernel(j, j, x_train) * (alpha_j_new - alpha_j_old) + b
-        if (alpha_i_new > 0) and (alpha_i_new < C):
-            b = b_1
-        elif (alpha_j_new > 0) and (alpha_j_new < C):
-            b = b_2
-        else:
-            b = (b_1 + b_2) / 2
         param_alpha[i] = alpha_i_new
+        update_e(i, param_alpha, b, x_train, y_train, e_cache)
+        b_1 = -e_i - y_train[i] * get_kernel(i, i, x_train) * (alpha_i_new - alpha_i_old) - y_train[j] * \
+            get_kernel(i, j, x_train) * (alpha_j_new - alpha_j_old) + b[0]
+        b_2 = -e_j - y_train[i] * get_kernel(i, j, x_train) * (alpha_i_new - alpha_i_old) - y_train[j] * \
+            get_kernel(j, j, x_train) * (alpha_j_new - alpha_j_old) + b[0]
+        if (alpha_i_new > 0) and (alpha_i_new < C):
+            b[0] = b_1
+        elif (alpha_j_new > 0) and (alpha_j_new < C):
+            b[0] = b_2
+        else:
+            b[0] = (b_1 + b_2) / 2
         return 1
     return 0
 
@@ -148,17 +160,16 @@ def draw_line(param_alpha, b, x_train, y_train):
     for i in range(DATA_NUM):
         weight_w += param_alpha[i] * y_train[i] * x_train[i, :]
     k = -weight_w[0] / weight_w[1]
-    b /= -weight_w[1]
-    # r = np.sqrt(weight_w[0] ** 2 + weight_w[1] ** 2)
+    b[0] /= -weight_w[1]
     r = 1 / weight_w[1]
-    point_x = [-20, 20]
+    point_x = [x_train[:, 0].min(), x_train[:, 0].max()]
     point_y = []
     point_y_up = []
     point_y_down = []
     for x in point_x:
-        y = x * k + b
-        y_1 = x * k + b + r
-        y_2 = x * k + b - r
+        y = x * k + b[0]
+        y_1 = x * k + b[0] + r
+        y_2 = x * k + b[0] - r
         point_y.append(y)
         point_y_up.append(y_1)
         point_y_down.append(y_2)
@@ -173,7 +184,7 @@ def draw_line(param_alpha, b, x_train, y_train):
 def svm():
     x_train, y_train = generate_data()
     param_alpha = np.zeros(DATA_NUM)
-    b = 0
+    b = [0]
     entire_set = True
     iter_num = 0
     pair_changed = 0
@@ -196,7 +207,6 @@ def svm():
             entire_set = True
         print 'iter num: %d' % iter_num
     draw_line(param_alpha, b, x_train, y_train)
-
 
 
 if __name__ == '__main__':
