@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from sklearn.datasets import make_classification
 
-CLASSIFIER_NUM = 5
+CLASSIFIER_NUM = 30
 STEPS = 10
 
 
@@ -15,8 +15,8 @@ def get_data():
     rng = np.random.RandomState(2)
     x += 2 * rng.uniform(size=x.shape)
     cmap_bold = ListedColormap(['#FF0000', '#00FF00'])
-    plt.scatter(x[:, 0], x[:, 1], c=y, cmap=cmap_bold)
-    plt.show()
+    # plt.scatter(x[:, 0], x[:, 1], c=y, cmap=cmap_bold)
+    # plt.show()
     return x, y
 
 
@@ -117,6 +117,10 @@ def adaboost_train():
         cnt_classifier = train_classifier(dataset, weight)
         weight = update_weight(dataset, cnt_classifier, weight)
         classifiers.append(cnt_classifier)
+    for classifier in classifiers:
+        print 'current classifier: dim:%d, threshold:%.5f, alpha:%.5f, flag:%.5f' % (
+            classifier.dim, classifier.threshold, classifier.alpha, classifier.flag
+        )
     decision_boundary(dataset, classifiers)
 
 
